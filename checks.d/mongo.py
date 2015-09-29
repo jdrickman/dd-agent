@@ -252,6 +252,28 @@ class MongoDb(AgentCheck):
             raise Exception(status['errmsg'].__str__())
 
         status['stats'] = db.command('dbstats')
+        dbstats = {}
+        dbstats[db_name] = {'stats': status['stats']}
+
+        #
+        # Get DB stats for all mongo DBs in cluster
+        cluster_dbs = db.command('listDatabases')
+        for db_n in cluster_dbs:
+            try:
+                db_aux = conn[db_n] # Trying to use the same connection.
+            except Exception:
+                self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags)
+                raise
+
+            if do_auth:
+                if not db_aux.authenticate(username, password):
+                    message = "Mongo: cannot connect with config %s" % server
+                    self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags, message=message)
+                    raise Exception(message)
+
+            dbstats[db_n] = {'stats': db_aux.command('dbstats')}
+
+        tags = list(set(tags))
 
         # Handle replica data, if any
         # See http://www.mongodb.org/display/DOCS/Replica+Set+Commands#ReplicaSetCommands-replSetGetStatus
@@ -309,11 +331,15 @@ class MongoDb(AgentCheck):
             # each metric is of the form: x.y.z with z optional
             # and can be found at status[x][y][z]
             value = status
-            try:
-                for c in m.split("."):
-                    value = value[c]
-            except KeyError:
+
+            if m.startswith('stats'):
                 continue
+            else:
+                try:
+                    for c in m.split("."):
+                        value = value[c]
+                except KeyError:
+                    continue
 
             # value is now status[x][y][z]
             assert type(value) in (types.IntType, types.LongType, types.FloatType)
@@ -326,3 +352,27 @@ class MongoDb(AgentCheck):
             if m in self.RATES:
                 m = self.normalize(m.lower(), 'mongodb') + "ps"
                 self.rate(m, value, tags=tags)
+
+        stat_metrics = filter(lambda x: x.startswith('stats.'), self.METRICS)
+        for s in dbstats:
+            for m in stat_metrics:
+                value = dbstats[s]
+                dbtag = s #key is db name, so we use that as the tag
+                try:
+                    for c in m.split('.'):
+                        value = value[c]
+                except KeyError:
+                    continue
+
+                # value is now status[x][y][z]
+                assert type(value) in (types.IntType, types.LongType, types.FloatType)
+
+                # Check if metric is a gauge or rate
+                if m in self.GAUGES:
+                    m = self.normalize(m.lower(), 'mongodb')
+                    self.gauge(m, value, tags=tags.append('cluster:db:%s' % dbtag))
+
+                if m in self.RATES:
+                    m = self.normalize(m.lower(), 'mongodb') + "ps"
+                    self.rate(m, value, tags=tags.append('cluster:db:%s' % dbtag))
+
