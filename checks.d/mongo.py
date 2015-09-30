@@ -235,6 +235,7 @@ class MongoDb(AgentCheck):
             conn = pymongo.Connection(server, network_timeout=timeout,
                 **ssl_params)
             db = conn[db_name]
+            dbnames = conn.database_names()
         except Exception:
             self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags)
             raise
@@ -256,9 +257,7 @@ class MongoDb(AgentCheck):
         dbstats[db_name] = {'stats': status['stats']}
 
         #
-        # Get DB stats for all mongo DBs in cluster
-        cluster_dbs = db.command('listDatabases')
-        for db_n in cluster_dbs:
+        for db_n in dbnames:
             try:
                 db_aux = conn[db_n] # Trying to use the same connection.
             except Exception:
