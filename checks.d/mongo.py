@@ -259,7 +259,9 @@ class MongoDb(AgentCheck):
         #
         for db_n in dbnames:
             try:
-                db_aux = conn[db_n] # Trying to use the same connection.
+                conn_aux = pymongo.Connection(server, network_timeout=timeout,
+                    **ssl_params)
+                db_aux = conn_aux[db_n] # Trying to use the same connection.
             except Exception:
                 self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags)
                 raise
