@@ -257,7 +257,7 @@ class MongoDb(AgentCheck):
         dbstats[db_name] = {'stats': status['stats']}
 
         for db_n in dbnames:
-            db_aux = db[db_n]
+            db_aux = cli[db_n]
             dbstats[db_n] = {'stats': db_aux.command('dbstats')}
 
         tags = list(set(tags))
