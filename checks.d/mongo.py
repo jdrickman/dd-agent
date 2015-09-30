@@ -230,9 +230,9 @@ class MongoDb(AgentCheck):
             self.log.debug("Mongo: cannot extract username and password from config %s" % server)
             do_auth = False
 
-        timeout = float(instance.get('timeout', DEFAULT_TIMEOUT))
+        timeout = float(instance.get('timeout', DEFAULT_TIMEOUT)) * 1000
         try:
-            cli = pymongo.mongo_client.MongoClient(server, network_timeout=timeout,
+            cli = pymongo.mongo_client.MongoClient(server, socketTimeoutMS=timeout,
                 **ssl_params)
             db = cli[db_name]
             dbnames = cli.database_names()
