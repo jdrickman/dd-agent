@@ -357,9 +357,9 @@ class MongoDb(AgentCheck):
                 # Check if metric is a gauge or rate
                 if m in self.GAUGES:
                     m = self.normalize(m.lower(), 'mongodb')
-                    self.gauge(m, value, tags=tags.append('cluster:db:%s' % dbtag))
+                    self.gauge(m, value, tags=tags + ['cluster:db:%s' % dbtag])
 
                 if m in self.RATES:
                     m = self.normalize(m.lower(), 'mongodb') + "ps"
-                    self.rate(m, value, tags=tags.append('cluster:db:%s' % dbtag))
+                    self.rate(m, value, tags=tags + ['cluster:db:%s' % dbtag])
 
