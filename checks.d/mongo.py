@@ -257,17 +257,7 @@ class MongoDb(AgentCheck):
         dbstats[db_name] = {'stats': status['stats']}
 
         for db_n in dbnames:
-            try:
-                conn_aux = pymongo.Connection(server, network_timeout=timeout,
-                    **ssl_params)
-                db_aux = conn_aux[db_n] # Trying to use the same connection.
-            except Exception:
-                self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags)
-                raise
-
-            """we don't need to authenticate again, once logged into 'admin',
-            we're good."""
-
+            db_aux = db[db_n]
             dbstats[db_n] = {'stats': db_aux.command('dbstats')}
 
         tags = list(set(tags))
