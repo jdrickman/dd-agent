@@ -232,10 +232,10 @@ class MongoDb(AgentCheck):
 
         timeout = float(instance.get('timeout', DEFAULT_TIMEOUT))
         try:
-            conn = pymongo.Connection(server, network_timeout=timeout,
+            cli = pymongo.mongo_client.MongoClient(server, network_timeout=timeout,
                 **ssl_params)
-            db = conn[db_name]
-            dbnames = conn.database_names()
+            db = cli[db_name]
+            dbnames = cli.database_names()
         except Exception:
             self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags)
             raise
