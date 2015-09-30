@@ -256,7 +256,6 @@ class MongoDb(AgentCheck):
         dbstats = {}
         dbstats[db_name] = {'stats': status['stats']}
 
-        #
         for db_n in dbnames:
             try:
                 conn_aux = pymongo.Connection(server, network_timeout=timeout,
@@ -266,11 +265,8 @@ class MongoDb(AgentCheck):
                 self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags)
                 raise
 
-            if do_auth:
-                if not db_aux.authenticate(username, password):
-                    message = "Mongo: cannot connect with config %s" % server
-                    self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags, message=message)
-                    raise Exception(message)
+            """we don't need to authenticate again, once logged into 'admin',
+            we're good."""
 
             dbstats[db_n] = {'stats': db_aux.command('dbstats')}
 
