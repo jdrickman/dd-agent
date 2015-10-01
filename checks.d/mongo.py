@@ -164,11 +164,15 @@ class MongoDb(AgentCheck):
         hostname = get_hostname(agentConfig)
         msg_title = "%s is %s" % (clean_server_name, status)
         msg = "MongoDB %s just reported as %s" % (clean_server_name, status)
+        api_key = ""
+
+        if 'api_key' in agentConfig:
+            api_key = agentConfig['api_key']
 
         self.event({
             'timestamp': int(time.time()),
             'event_type': 'Mongo',
-            'api_key': agentConfig['api_key'],
+            'api_key': api_key,
             'msg_title': msg_title,
             'msg_text': msg,
             'host': hostname
@@ -233,9 +237,10 @@ class MongoDb(AgentCheck):
         timeout = float(instance.get('timeout', DEFAULT_TIMEOUT)) * 1000
         try:
             cli = pymongo.mongo_client.MongoClient(server, socketTimeoutMS=timeout,
+                read_preference=pymongo.ReadPreference.PRIMARY_PREFERRED,
                 **ssl_params)
+            admindb = cli['admin'] #some commands can only go against the admin DB
             db = cli[db_name]
-            dbnames = cli.database_names()
         except Exception:
             self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags)
             raise
@@ -256,21 +261,31 @@ class MongoDb(AgentCheck):
         dbstats = {}
         dbstats[db_name] = {'stats': status['stats']}
 
-        for db_n in dbnames:
-            db_aux = cli[db_n]
-            dbstats[db_n] = {'stats': db_aux.command('dbstats')}
-
         tags = list(set(tags))
 
         # Handle replica data, if any
         # See http://www.mongodb.org/display/DOCS/Replica+Set+Commands#ReplicaSetCommands-replSetGetStatus
         try:
             data = {}
+            dbnames = []
 
-            replSet = db.command('replSetGetStatus')
+            replSet = admindb.command('replSetGetStatus')
             if replSet:
                 primary = None
                 current = None
+
+                #need a new connection to deal with replica sets
+                setname = replSet.get('set')
+                cli = pymongo.mongo_client.MongoClient(server, socketTimeoutMS=timeout,
+                    replicaset=setname, read_preference=pymongo.ReadPreference.NEAREST,
+                    **ssl_params)
+                db = cli[db_name]
+
+                if do_auth:
+                    if not db.authenticate(username, password):
+                        message = "Mongo: cannot connect with config %s" % server
+                        self.service_check(self.SERVICE_CHECK_NAME, AgentCheck.CRITICAL, tags=service_check_tags, message=message)
+                        raise Exception(message)
 
                 # find nodes: master and current node (ourself)
                 for member in replSet.get('members'):
@@ -297,6 +312,7 @@ class MongoDb(AgentCheck):
                 data['state'] = replSet['myState']
                 self.check_last_state(data['state'], clean_server_name, self.agentConfig)
                 status['replSet'] = data
+
         except Exception, e:
             if "OperationFailure" in repr(e) and "replSetGetStatus" in str(e):
                 pass
@@ -312,6 +328,11 @@ class MongoDb(AgentCheck):
             status.pop('localTime')
         except KeyError:
             pass
+
+        dbnames = cli.database_names()
+        for db_n in dbnames:
+            db_aux = cli[db_n]
+            dbstats[db_n] = {'stats': db_aux.command('dbstats')}
 
         # Go through the metrics and save the values
         for m in self.METRICS:
