@@ -164,15 +164,11 @@ class MongoDb(AgentCheck):
         hostname = get_hostname(agentConfig)
         msg_title = "%s is %s" % (clean_server_name, status)
         msg = "MongoDB %s just reported as %s" % (clean_server_name, status)
-        api_key = ""
-
-        if 'api_key' in agentConfig:
-            api_key = agentConfig['api_key']
 
         self.event({
             'timestamp': int(time.time()),
             'event_type': 'Mongo',
-            'api_key': api_key,
+            'api_key': agentConfig.get(['api_key'], ''),
             'msg_title': msg_title,
             'msg_text': msg,
             'host': hostname
